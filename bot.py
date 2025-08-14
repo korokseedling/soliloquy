@@ -26,6 +26,15 @@ TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 LTA_API_KEY = os.getenv("LTA_API_KEY")
 
+# Check if API keys are loaded before initializing client
+if not TELEGRAM_TOKEN or not OPENAI_API_KEY or not LTA_API_KEY:
+    print("❌ Error: Missing API keys in environment variables")
+    print(f"TELEGRAM_TOKEN: {'✅' if TELEGRAM_TOKEN else '❌'}")
+    print(f"OPENAI_API_KEY: {'✅' if OPENAI_API_KEY else '❌'}")
+    print(f"LTA_API_KEY: {'✅' if LTA_API_KEY else '❌'}")
+    print("💡 Set these variables in Railway dashboard > Variables tab")
+    exit(1)
+
 client = OpenAI(api_key=OPENAI_API_KEY)
 
 # Load configuration
@@ -391,12 +400,7 @@ async def handle_non_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
     log_conversation(user.id, username, "non_text", message_type, "handled")
     await update.message.reply_text("Wah! I can only read text messages leh! Can type your bus or parking question instead? 🚌🅿️")
 
-if __name__ == "__main__":
-    # Check if tokens are loaded
-    if not TELEGRAM_TOKEN or not OPENAI_API_KEY or not LTA_API_KEY:
-        print("❌ Error: Please set TELEGRAM_TOKEN, OPENAI_API_KEY, and LTA_API_KEY in .env file")
-        exit(1)
-    
+if __name__ == "__main__":    
     print("🚌 Starting Lepak Driver bot...")
     print(f"📊 Loaded {len(bus_stop_matcher.bus_stops)} bus stops")
     print(f"🔧 Using {config['model_settings']['model_name']} model")
