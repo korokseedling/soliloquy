@@ -25,9 +25,21 @@ load_dotenv()
 
 # Debug: Print all environment variables starting with relevant prefixes
 print("🔍 Debug: Checking environment variables...")
-for key, value in os.environ.items():
-    if key in ['TELEGRAM_TOKEN', 'OPENAI_API_KEY', 'LTA_API_KEY']:
+print(f"Total environment variables: {len(os.environ)}")
+
+# Print ALL environment variables (first 10 characters only for security)
+print("All env vars:")
+for key, value in list(os.environ.items())[:10]:  # Show first 10 to avoid spam
+    print(f"  {key}: {value[:10]}...")
+
+# Check specifically for our variables
+target_vars = ['TELEGRAM_TOKEN', 'OPENAI_API_KEY', 'LTA_API_KEY']
+for key in target_vars:
+    if key in os.environ:
+        value = os.environ[key]
         print(f"Found {key}: {value[:10]}...{value[-8:] if len(value) > 18 else 'SHORT_VALUE'}")
+    else:
+        print(f"❌ {key} not found in environment")
 
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY") 
@@ -327,8 +339,8 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         # Log successful response
         log_conversation(user_id, username, "outgoing", reply_text)
         
-        # Send reply back to Telegram
-        await update.message.reply_text(reply_text)
+        # Send reply back to Telegram with HTML parsing enabled
+        await update.message.reply_text(reply_text, parse_mode='HTML')
         logging.info(f"📤 Reply sent successfully to {username}")
         
     except Exception as e:
@@ -339,16 +351,16 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 # Handle /start command
 async def handle_start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
-    welcome_message = f"""🚌 **Welcome to Lepak Driver!** 
+    welcome_message = f"""🚌 <b>Welcome to Lepak Driver!</b> 
 
 Hi {user.first_name}! I'm your Singapore transit assistant. I can help you with:
 
-🚌 **Real-time bus arrivals**
+🚌 <b>Real-time bus arrivals</b>
 • "When is bus 174 at Ang Mo Kio Hub?"
 • "Bus arrivals at ION Orchard"
 • "Check bus stop 28009"
 
-🅿️ **Carpark availability**
+🅿️ <b>Carpark availability</b>
 • "Parking at Marina Bay"
 • "How many lots at Jurong Point?"
 
@@ -357,31 +369,31 @@ Just ask me in natural language and I'll help you lepak around Singapore! 😊
 💡 Use /clear to reset our conversation
 💡 Use /help for more examples"""
     
-    await update.message.reply_text(welcome_message)
+    await update.message.reply_text(welcome_message, parse_mode='HTML')
 
 # Handle /help command
 async def handle_help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    help_message = """🚌 **Lepak Driver Help**
+    help_message = """🚌 <b>Lepak Driver Help</b>
 
-**Bus Arrival Queries:**
+<b>Bus Arrival Queries:</b>
 • "Bus 174 at Ang Mo Kio Hub"
 • "When is the next bus at ION Orchard?"
 • "Bus arrivals at stop 28009"
 • "Is bus 36 crowded now?"
 
-**Parking Queries:**
+<b>Parking Queries:</b>
 • "Parking availability at Marina Bay"
 • "How many lots at Jurong Point?"
 • "Carparks in Orchard area"
 
-**Commands:**
+<b>Commands:</b>
 • /start - Welcome message
 • /clear - Reset conversation
 • /help - This help message
 
 Just type naturally and I'll understand! 🇸🇬"""
     
-    await update.message.reply_text(help_message)
+    await update.message.reply_text(help_message, parse_mode='HTML')
 
 # Handle /clear command to reset conversation history
 async def handle_clear_command(update: Update, context: ContextTypes.DEFAULT_TYPE):

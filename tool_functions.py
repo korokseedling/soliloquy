@@ -14,32 +14,32 @@ def get_bus_arrival_tool(bus_stop_code: str, service_no: Optional[str] = None) -
         
         # Provide specific guidance based on error type
         if error_type == 'auth':
-            return f"🔐 **Authentication Error**\n{error_msg}\n\nAdmin needs to check the LTA API key!"
+            return f"🔐 <b>Authentication Error</b>\n{error_msg}\n\nAdmin needs to check the LTA API key!"
         elif error_type == 'not_found':
-            return f"❌ **Bus Stop Not Found**\n{error_msg}\n\n💡 **Try:**\n• Check if the bus stop code is correct (5 digits)\n• Search by location name instead\n• Make sure it's an active bus stop"
+            return f"❌ <b>Bus Stop Not Found</b>\n{error_msg}\n\n💡 <b>Try:</b>\n• Check if the bus stop code is correct (5 digits)\n• Search by location name instead\n• Make sure it's an active bus stop"
         elif error_type == 'rate_limit':
-            return f"🚦 **Too Many Requests**\n{error_msg}\n\nPlease wait a bit before trying again!"
+            return f"🚦 <b>Too Many Requests</b>\n{error_msg}\n\nPlease wait a bit before trying again!"
         elif error_type == 'timeout':
-            return f"⏰ **Request Timeout**\n{error_msg}\n\nThe API is slow. Please try again!"
+            return f"⏰ <b>Request Timeout</b>\n{error_msg}\n\nThe API is slow. Please try again!"
         elif error_type == 'connection':
-            return f"🌐 **Connection Error**\n{error_msg}\n\nCheck your internet connection and try again."
+            return f"🌐 <b>Connection Error</b>\n{error_msg}\n\nCheck your internet connection and try again."
         else:
-            return f"❌ **Error:** {error_msg}"
+            return f"❌ <b>Error:</b> {error_msg}"
     
     if result.get('status') != 'success':
         return f"❌ Unexpected API response for bus stop {bus_stop_code}"
     
     services = result.get('services', [])
     if not services:
-        return f"ℹ️ **No bus services found** for bus stop {bus_stop_code}\n\nThis stop may not be active or may not have scheduled services."
+        return f"ℹ️ <b>No bus services found</b> for bus stop {bus_stop_code}\n\nThis stop may not be active or may not have scheduled services."
     
-    response = f"🚌 **Bus arrivals for stop {bus_stop_code}**\n⏰ *Updated: {result['timestamp']}*\n\n"
+    response = f"🚌 <b>Bus arrivals for stop {bus_stop_code}</b>\n⏰ <i>Updated: {result['timestamp']}</i>\n\n"
     
     for service in services:
         if service_no and service['service_no'] != service_no:
             continue
             
-        response += f"**🚌 Service {service['service_no']}** ({service['operator']}):\n"
+        response += f"<b>🚌 Service {service['service_no']}</b> ({service['operator']}):\n"
         
         buses = [service['next_bus'], service['next_bus_2'], service['next_bus_3']]
         bus_labels = ['Next', '2nd', '3rd']
@@ -48,11 +48,11 @@ def get_bus_arrival_tool(bus_stop_code: str, service_no: Optional[str] = None) -
             if bus['available']:
                 if bus['minutes_to_arrival'] is not None:
                     if bus['minutes_to_arrival'] <= 0:
-                        arrival_text = "**Arriving now** 🏃‍♂️"
+                        arrival_text = "<b>Arriving now</b> 🏃‍♂️"
                     elif bus['minutes_to_arrival'] == 1:
-                        arrival_text = "**1 minute**"
+                        arrival_text = "<b>1 minute</b>"
                     else:
-                        arrival_text = f"**{bus['minutes_to_arrival']} minutes**"
+                        arrival_text = f"<b>{bus['minutes_to_arrival']} minutes</b>"
                 else:
                     arrival_text = "N/A"
                 
@@ -69,16 +69,16 @@ def find_bus_stops_by_location_tool(location_query: str, max_results: int = 5) -
     matches = find_bus_stops_for_location(location_query, max_results)
     
     if not matches:
-        return f"❌ **No bus stops found** matching '{location_query}'\n\n💡 **Try:**\n• Different spelling or shorter search term\n• Landmark names like 'ION Orchard' or 'Ang Mo Kio Hub'\n• Area names like 'Marina Bay' or 'Jurong'\n• Check for typos"
+        return f"❌ <b>No bus stops found</b> matching '{location_query}'\n\n💡 <b>Try:</b>\n• Different spelling or shorter search term\n• Landmark names like 'ION Orchard' or 'Ang Mo Kio Hub'\n• Area names like 'Marina Bay' or 'Jurong'\n• Check for typos"
     
-    response = f"🔍 **Found {len(matches)} bus stops** near '{location_query}':\n\n"
+    response = f"🔍 <b>Found {len(matches)} bus stops</b> near '{location_query}':\n\n"
     
     for i, match in enumerate(matches, 1):
-        response += f"**{i}. {match['Description']}** (Code: {match['BusStopCode']})\n"
+        response += f"<b>{i}. {match['Description']}</b> (Code: {match['BusStopCode']})\n"
         response += f"📍 {match['RoadName']}\n"
         response += f"🎯 Match: {match['similarity_score']:.1%}\n\n"
     
-    response += "💡 **Reply with the number** (e.g., '1') to get bus arrivals!"
+    response += "💡 <b>Reply with the number</b> (e.g., '1') to get bus arrivals!"
     
     return response
 
@@ -157,31 +157,31 @@ def get_carpark_availability_tool(carpark_id: Optional[str] = None, area: Option
         error_msg = result['error']
         
         if error_type == 'request':
-            return f"🌐 **API Request Failed**\n{error_msg}\n\nCheck internet and try again."
+            return f"🌐 <b>API Request Failed</b>\n{error_msg}\n\nCheck internet and try again."
         elif error_type == 'json':
-            return f"📄 **Data Format Error**\n{error_msg}\n\nAPI returned invalid data."
+            return f"📄 <b>Data Format Error</b>\n{error_msg}\n\nAPI returned invalid data."
         else:
-            return f"❌ **Error:** {error_msg}"
+            return f"❌ <b>Error:</b> {error_msg}"
     
     if not result['carparks']:
         if carpark_id:
-            return f"❌ **No carpark found** with ID `{carpark_id}`\n\n💡 Try searching by area instead."
+            return f"❌ <b>No carpark found</b> with ID `{carpark_id}`\n\n💡 Try searching by area instead."
         elif area:
-            return f"❌ **No carparks found** in area `{area}`\n\n💡 Try a different area name."
+            return f"❌ <b>No carparks found</b> in area `{area}`\n\n💡 Try a different area name."
         else:
-            return "❌ **No carpark data available** at this time."
+            return "❌ <b>No carpark data available</b> at this time."
     
-    response = f"🅿️ **Carpark availability**\n⏰ *Updated: {result['timestamp']}*\n\n"
+    response = f"🅿️ <b>Carpark availability</b>\n⏰ <i>Updated: {result['timestamp']}</i>\n\n"
     
     # Limit to 8 results for mobile readability
     for carpark in result['carparks'][:8]:
-        response += f"**🏢 {carpark['development']}**\n"
+        response += f"<b>🏢 {carpark['development']}</b>\n"
         response += f"📍 {carpark['location']}\n"
-        response += f"🚗 **{carpark['available_lots']} lots available** ({carpark['lot_type']})\n"
+        response += f"🚗 <b>{carpark['available_lots']} lots available</b> ({carpark['lot_type']})\n"
         response += f"🆔 {carpark['carpark_id']} | 📍 {carpark['area']}\n\n"
     
     if len(result['carparks']) > 8:
-        response += f"... and **{len(result['carparks']) - 8} more** carparks available"
+        response += f"... and <b>{len(result['carparks']) - 8} more</b> carparks available"
     
     return response
 
