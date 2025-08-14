@@ -319,7 +319,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     # Check if message exists and has text
     if not update.message or not update.message.text:
-        await update.message.reply_text("Eh, I need a text message leh! Can type your question about buses or parking?")
+        await update.message.reply_text("Eh, I need a text message leh! Can type your question about buses or parking?", parse_mode='HTML')
         return
     
     user_input = update.message.text.strip()
@@ -329,7 +329,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     # Check for empty messages
     if not user_input:
-        await update.message.reply_text("Your message is empty lah! Ask me about bus arrivals or parking! 🚌🅿️")
+        await update.message.reply_text("Your message is empty lah! Ask me about bus arrivals or parking! 🚌🅿️", parse_mode='HTML')
         return
     
     try:
@@ -346,7 +346,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     except Exception as e:
         error_msg = str(e)
         log_conversation(user_id, username, "error", user_input, "failed", error_msg)
-        await update.message.reply_text("Alamak! Something went wrong lah! Can try again? 😰")
+        await update.message.reply_text("Alamak! Something went wrong lah! Can try again? 😰", parse_mode='HTML')
 
 # Handle /start command
 async def handle_start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -409,15 +409,15 @@ async def handle_clear_command(update: Update, context: ContextTypes.DEFAULT_TYP
         if os.path.exists(file_path):
             os.remove(file_path)
             log_conversation(user_id, username, "clear", "/clear", "success")
-            await update.message.reply_text("✅ Conversation cleared! Let's start fresh! 🚌🅿️")
+            await update.message.reply_text("✅ Conversation cleared! Let's start fresh! 🚌🅿️", parse_mode='HTML')
         else:
-            await update.message.reply_text("No conversation to clear! We haven't chatted today! 🤔")
+            await update.message.reply_text("No conversation to clear! We haven't chatted today! 🤔", parse_mode='HTML')
             
         logging.info(f"🗑️ Conversation history cleared for user {username}")
         
     except Exception as e:
         logging.error(f"❌ Error clearing conversation for user {username}: {e}")
-        await update.message.reply_text("Alamak! Something went wrong when clearing! 😰")
+        await update.message.reply_text("Alamak! Something went wrong when clearing! 😰", parse_mode='HTML')
 
 # Handle non-text messages
 async def handle_non_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -435,7 +435,7 @@ async def handle_non_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
         message_type = "document"
     
     log_conversation(user.id, username, "non_text", message_type, "handled")
-    await update.message.reply_text("Wah! I can only read text messages leh! Can type your bus or parking question instead? 🚌🅿️")
+    await update.message.reply_text("Wah! I can only read text messages leh! Can type your bus or parking question instead? 🚌🅿️", parse_mode='HTML')
 
 if __name__ == "__main__":    
     print("🚌 Starting Lepak Driver bot...")
