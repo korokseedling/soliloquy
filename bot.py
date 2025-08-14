@@ -203,6 +203,28 @@ def log_conversation(user_id, username, message_type, content, status="success",
     logging.info(log_entry)
     print(f"📝 {log_entry}")
 
+import re
+
+def convert_asterisks_to_html(text: str) -> str:
+    """
+    Convert asterisk formatting to HTML tags as a fallback protection.
+    This ensures that if the AI generates asterisks, they get converted to proper HTML.
+    """
+    if not text:
+        return text
+    
+    # Log if we find asterisks (so we can debug)
+    if '*' in text:
+        logging.warning(f"🚨 Found asterisks in response, converting to HTML: {text[:100]}...")
+    
+    # Convert **text** to <b>text</b>
+    text = re.sub(r'\*\*([^*]+?)\*\*', r'<b>\1</b>', text)
+    
+    # Convert *text* to <i>text</i> (but be careful not to break emoji or other content)
+    text = re.sub(r'(?<!\*)\*([^*\s][^*]*?)\*(?!\*)', r'<i>\1</i>', text)
+    
+    return text
+
 def process_user_message(user_input: str, user_id: int, username: str) -> str:
     """Process user message with OpenAI function calling and return response"""
     
@@ -291,6 +313,9 @@ def process_user_message(user_input: str, user_id: int, username: str) -> str:
             
             final_message = final_response.choices[0].message.content
             
+            # Convert any asterisks to HTML as fallback protection
+            final_message = convert_asterisks_to_html(final_message)
+            
             # Save conversation with tool call info
             add_to_conversation_history(user_id, user_input, final_message, tool_call_info)
             
@@ -300,6 +325,10 @@ def process_user_message(user_input: str, user_id: int, username: str) -> str:
         else:
             # No tool calls, just return the assistant's message
             response_content = assistant_message.content
+            
+            # Convert any asterisks to HTML as fallback protection
+            response_content = convert_asterisks_to_html(response_content)
+            
             add_to_conversation_history(user_id, user_input, response_content)
             
             logging.info(f"✅ OpenAI API success. Tokens: {response.usage.total_tokens}")
