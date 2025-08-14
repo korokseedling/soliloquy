@@ -20,19 +20,44 @@ logging.basicConfig(
     ]
 )
 
-# Load .env variables
+# Load .env variables (Railway doesn't use .env files, uses environment variables directly)
 load_dotenv()
+
+# Debug: Print all environment variables starting with relevant prefixes
+print("🔍 Debug: Checking environment variables...")
+for key, value in os.environ.items():
+    if key in ['TELEGRAM_TOKEN', 'OPENAI_API_KEY', 'LTA_API_KEY']:
+        print(f"Found {key}: {value[:10]}...{value[-8:] if len(value) > 18 else 'SHORT_VALUE'}")
+
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
-OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY") 
 LTA_API_KEY = os.getenv("LTA_API_KEY")
+
+print(f"🔍 After loading:")
+print(f"TELEGRAM_TOKEN: {'✅ Found' if TELEGRAM_TOKEN else '❌ Missing'}")
+print(f"OPENAI_API_KEY: {'✅ Found' if OPENAI_API_KEY else '❌ Missing'}")
+print(f"LTA_API_KEY: {'✅ Found' if LTA_API_KEY else '❌ Missing'}")
 
 # Check if API keys are loaded before initializing client
 if not TELEGRAM_TOKEN or not OPENAI_API_KEY or not LTA_API_KEY:
-    print("❌ Error: Missing API keys in environment variables")
-    print(f"TELEGRAM_TOKEN: {'✅' if TELEGRAM_TOKEN else '❌'}")
-    print(f"OPENAI_API_KEY: {'✅' if OPENAI_API_KEY else '❌'}")
-    print(f"LTA_API_KEY: {'✅' if LTA_API_KEY else '❌'}")
-    print("💡 Set these variables in Railway dashboard > Variables tab")
+    print("\n❌ Error: Missing API keys in environment variables")
+    print("🔧 Railway Troubleshooting:")
+    print("1. Go to Railway dashboard > Your Project > Variables tab")
+    print("2. Make sure variables are spelled EXACTLY as:")
+    print("   - TELEGRAM_TOKEN")
+    print("   - OPENAI_API_KEY") 
+    print("   - LTA_API_KEY")
+    print("3. Values should have NO quotes, NO spaces at start/end")
+    print("4. After adding variables, redeploy the service")
+    
+    # Show what Railway environment looks like
+    print(f"\n🔍 Railway Environment Debug:")
+    env_vars = [k for k in os.environ.keys() if any(x in k.upper() for x in ['TOKEN', 'KEY', 'API'])]
+    if env_vars:
+        print(f"Found environment variables: {env_vars}")
+    else:
+        print("No API-related environment variables found")
+    
     exit(1)
 
 client = OpenAI(api_key=OPENAI_API_KEY)
