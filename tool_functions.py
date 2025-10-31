@@ -83,7 +83,7 @@ def generate_neologism_image(
 
         # Build customized prompt
         if neologism_type == "dictionary":
-            customized_prompt = f"""In expressionist painterly style with visible, constructed brushwork, depict an urbane scene from the point of view of a stray cat observing from a distance. The scene analogizes the emotion **{word_or_place}** — {emotion_description}.
+            customized_prompt = f"""In expressionist painterly style with visible, constructed brushwork, depict an urbane scene from the point of view of a stray cat and with the back of the cat's head peeking out at the bottom. The scene analogizes the emotion **{word_or_place}** — {emotion_description}.
 
 **Visual Style:**
 Textured strokes with impasto passages and gestural marks creating faceted, almost geological planes. Warm undertones (ochre, burnt sienna, raw umber) break through cooler surface colors (violet, blue-green, slate) as though emotion is surfacing through painted skin.
@@ -94,7 +94,16 @@ Textured strokes with impasto passages and gestural marks creating faceted, almo
 
 **Emotional Keywords:** {emotional_keywords}
 
-**Composition:** Urban scene that embodies the feeling — {definition[:150]}
+**Scene & Composition:**
+Create a specific urban landscape that visually embodies the emotion "{word_or_place}" — {definition[:200]}
+
+Translate the key concepts from this definition into concrete visual elements:
+- Identify metaphorical qualities (e.g., weight, suspension, collective experience, timelessness, fragility)
+- Depict these through specific urban architecture, human figures, objects, or atmospheric conditions
+- Consider: vertical/horizontal planes, layered spaces, solitary vs. grouped figures, movement vs. stillness, light sources, reflections, weather conditions
+- The cat observes from a vantage point (fire escape, rooftop, alley corner, windowsill) that reveals the scene's emotional geometry
+
+Show the urban environment in a way that makes the invisible feeling visible through composition, gesture, and symbolic detail.
 
 **Right Panel:**
 On the right side, incorporate a stylized definition panel:
