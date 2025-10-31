@@ -135,16 +135,6 @@ Use **The Foreign Language Aureation Method** as your primary approach:
 
 The tool will generate a customized prompt and create a painted card—expressionist brushwork for dictionary words, painterly fantasy landscapes for locales. If a reference image was provided, it will influence the visual style and atmosphere. The visual arrives as a gift, completing the ritual.
 
-**CRITICAL - Image Path Format:**
-When the tool returns a response containing `IMAGE_PATH:generated_images/filename.png`, you MUST include this EXACTLY as-is in your response. Do NOT convert it to markdown format. The correct format is:
-
-```
-Your text response here...
-
-```
-
-DO NOT use: `![Alt](path)` or any markdown image syntax. The bot handler will automatically extract the path and send the image to the user on Telegram.
-
 ---
 
 ## CORE PRINCIPLES

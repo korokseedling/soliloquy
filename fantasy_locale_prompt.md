@@ -36,7 +36,7 @@ The entire composition should feel like a dream painted in motion, where imperfe
 --ar 16:9 --style painterly --lighting expressionist diffuse --details mythic symbolic --mood cinematic emotional --texture gestural layered --focus atmospheric depth
 
 # Right Panel
-On the right side of the composition, incorporate a stylized definition panel matching the emotional theme. The panel contains an emotion neologism with its definition, using a calligraphic font for the neologism itself—rendered with visible brushstroke texture, ink leak, and the gestural energy of traditional calligraphy. Below this, provide the pronunciation guide, the etymology of the term, The definition—a description of the place and what it means, followed by a sacred or profane ritual conducted by the mythical animal inhabitants.
+On the right side of the composition, incorporate a stylized glassmorphic definition panel matching the emotional theme. The ratio of right panel: left image area is 1:2.  The panel contains an emotion neologism with its definition, using a calligraphic font for the neologism itself—rendered with visible brushstroke texture, ink leak, and the gestural energy of traditional calligraphy. Below this, provide the pronunciation guide, the etymology of the term, The definition—a description of the place and what it means, followed by a sacred or profane ritual conducted by the mythical animal inhabitants.
 
 # Example Patterns
 ## Example 1
