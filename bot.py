@@ -7,7 +7,6 @@ from telegram import Update
 from telegram.ext import ApplicationBuilder, MessageHandler, filters, ContextTypes, CommandHandler
 from openai import OpenAI
 
-from lta_integration import LTADataManager, BusStopMatcher
 from tool_functions import TOOL_FUNCTIONS
 
 # Setup logging
@@ -15,7 +14,7 @@ logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(levelname)s - %(message)s',
     handlers=[
-        logging.FileHandler('lepak_driver_bot.log'),
+        logging.FileHandler('soliloquy_bot.log'),
         logging.StreamHandler()
     ]
 )
@@ -33,7 +32,7 @@ for key, value in list(os.environ.items())[:10]:  # Show first 10 to avoid spam
     print(f"  {key}: {value[:10]}...")
 
 # Check specifically for our variables
-target_vars = ['TELEGRAM_TOKEN', 'OPENAI_API_KEY', 'LTA_API_KEY']
+target_vars = ['TELEGRAM_TOKEN', 'OPENAI_API_KEY', 'GEMINI_API_KEY']
 for key in target_vars:
     if key in os.environ:
         value = os.environ[key]
@@ -42,23 +41,23 @@ for key in target_vars:
         print(f"❌ {key} not found in environment")
 
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
-OPENAI_API_KEY = os.getenv("OPENAI_API_KEY") 
-LTA_API_KEY = os.getenv("LTA_API_KEY")
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 
 print(f"🔍 After loading:")
 print(f"TELEGRAM_TOKEN: {'✅ Found' if TELEGRAM_TOKEN else '❌ Missing'}")
 print(f"OPENAI_API_KEY: {'✅ Found' if OPENAI_API_KEY else '❌ Missing'}")
-print(f"LTA_API_KEY: {'✅ Found' if LTA_API_KEY else '❌ Missing'}")
+print(f"GEMINI_API_KEY: {'✅ Found' if GEMINI_API_KEY else '❌ Missing'}")
 
 # Check if API keys are loaded before initializing client
-if not TELEGRAM_TOKEN or not OPENAI_API_KEY or not LTA_API_KEY:
-    print("\n❌ Error: Missing API keys in environment variables")
+if not TELEGRAM_TOKEN or not OPENAI_API_KEY:
+    print("\n❌ Error: Missing required API keys in environment variables")
     print("🔧 Railway Troubleshooting:")
     print("1. Go to Railway dashboard > Your Project > Variables tab")
     print("2. Make sure variables are spelled EXACTLY as:")
     print("   - TELEGRAM_TOKEN")
-    print("   - OPENAI_API_KEY") 
-    print("   - LTA_API_KEY")
+    print("   - OPENAI_API_KEY")
+    print("   - GEMINI_API_KEY (optional, for image generation)")
     print("3. Values should have NO quotes, NO spaces at start/end")
     print("4. After adding variables, redeploy the service")
     
@@ -78,13 +77,6 @@ client = OpenAI(api_key=OPENAI_API_KEY)
 with open('model_config.json', 'r') as f:
     config = json.load(f)
 
-# Initialize LTA components
-lta_manager = LTADataManager(LTA_API_KEY, config['lta_api_settings']['base_url'], config)
-bus_stop_matcher = BusStopMatcher()
-
-# Set global lta_manager for tool functions
-import tool_functions
-tool_functions.lta_manager = lta_manager
 
 # Create conversations directory if it doesn't exist
 CONVERSATIONS_DIR = "conversations"
@@ -181,10 +173,27 @@ def cleanup_old_conversations():
     except Exception as e:
         logging.error(f"Error cleaning up old conversations: {e}")
 
-# Read the system prompt
-def get_system_prompt():
+# Read the system prompt and append username
+def get_system_prompt(username: str = None):
     with open("system_prompt.md", "r", encoding="utf-8") as f:
-        return f.read()
+        system_prompt = f.read()
+    
+    # Append username if provided
+    if username:
+        system_prompt += f"\n\nUser's name is {username}"
+    
+    return system_prompt
+
+def get_telegram_username(user) -> str:
+    """Extract the best available name from Telegram user object"""
+    if user.first_name and user.last_name:
+        return f"{user.first_name} {user.last_name}"
+    elif user.first_name:
+        return user.first_name
+    elif user.username:
+        return f"@{user.username}"
+    else:
+        return None
 
 # Conversation logger
 def log_conversation(user_id, username, message_type, content, status="success", error=None):
@@ -225,16 +234,19 @@ def convert_asterisks_to_html(text: str) -> str:
     
     return text
 
-def process_user_message(user_input: str, user_id: int, username: str) -> str:
+def process_user_message(user_input: str, user_id: int, username: str, telegram_user=None) -> str:
     """Process user message with OpenAI function calling and return response"""
     
     try:
         # Load conversation history
         conversation_history = load_conversation_history(user_id)
         
+        # Get username for system prompt
+        user_display_name = get_telegram_username(telegram_user) if telegram_user else username
+        
         # Prepare messages for OpenAI API
         messages = [
-            {"role": "system", "content": get_system_prompt()}
+            {"role": "system", "content": get_system_prompt(user_display_name)}
         ]
         
         # Add conversation history
@@ -345,83 +357,199 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
     user_id = user.id
     username = user.username or user.first_name or "Unknown"
-    
+
     # Check if message exists and has text
     if not update.message or not update.message.text:
-        await update.message.reply_text("Eh, I need a text message leh! Can type your question about buses or parking?", parse_mode='HTML')
+        await update.message.reply_text("Please send me a text message!", parse_mode='HTML')
         return
-    
+
     user_input = update.message.text.strip()
-    
+
     # Log incoming message
     log_conversation(user_id, username, "incoming", user_input)
-    
+
     # Check for empty messages
     if not user_input:
-        await update.message.reply_text("Your message is empty lah! Ask me about bus arrivals or parking! 🚌🅿️", parse_mode='HTML')
+        await update.message.reply_text("Your message is empty! Please ask me something!", parse_mode='HTML')
         return
-    
+
     try:
         # Process message with function calling
-        reply_text = process_user_message(user_input, user_id, username)
+        reply_text = process_user_message(user_input, user_id, username, user)
+
+        # Log successful response
+        log_conversation(user_id, username, "outgoing", reply_text)
+
+        # Check if response contains IMAGE_PATH: prefix (from generate_neologism_image)
+        if reply_text.startswith("IMAGE_PATH:"):
+            # Extract image path and remaining text
+            lines = reply_text.split('\n', 1)
+            image_path = lines[0].replace("IMAGE_PATH:", "").strip()
+            text_message = lines[1].strip() if len(lines) > 1 else "✨ Your neologism's visual card."
+
+            # Send the image
+            if os.path.exists(image_path):
+                with open(image_path, 'rb') as photo:
+                    await update.message.reply_photo(photo=photo, caption=text_message, parse_mode='HTML')
+                logging.info(f"🖼️ Image sent successfully to {username}: {image_path}")
+            else:
+                # Fallback if image file not found
+                await update.message.reply_text(f"❌ Image generation completed but file not found at {image_path}", parse_mode='HTML')
+        else:
+            # Normal text response without image
+            await update.message.reply_text(reply_text, parse_mode='HTML')
+            logging.info(f"📤 Reply sent successfully to {username}")
+
+    except Exception as e:
+        error_msg = str(e)
+        log_conversation(user_id, username, "error", user_input, "failed", error_msg)
+        await update.message.reply_text("Something went wrong! Please try again.", parse_mode='HTML')
+
+def transcribe_voice_message(voice_file_path: str) -> str:
+    """Transcribe voice message using OpenAI Whisper API with language detection"""
+    try:
+        with open(voice_file_path, 'rb') as audio_file:
+            # First attempt: Auto-detect language (no language parameter)
+            transcript = client.audio.transcriptions.create(
+                model="whisper-1",
+                file=audio_file,
+                response_format="json"  # Use JSON to get language info
+            )
+        
+        # Extract text and detected language
+        text = transcript.text
+        detected_language = getattr(transcript, 'language', 'unknown')
+        
+        logging.info(f"🌐 Detected language: {detected_language}")
+        
+        # If detected language is not English or Chinese, try forcing English
+        if detected_language not in ['en', 'zh', 'zh-cn', 'zh-tw']:
+            logging.info(f"🔄 Non-English/Chinese detected ({detected_language}), retrying with English")
+            with open(voice_file_path, 'rb') as audio_file:
+                transcript = client.audio.transcriptions.create(
+                    model="whisper-1",
+                    file=audio_file,
+                    response_format="text",
+                    language="en"
+                )
+            return transcript
+        
+        return text
+    except Exception as e:
+        logging.error(f"❌ Error transcribing voice message: {e}")
+        return f"Error transcribing voice message: {str(e)}"
+
+# Handle voice messages
+async def handle_voice_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handle voice messages by transcribing and processing them"""
+    user = update.effective_user
+    user_id = user.id
+    username = user.username or user.first_name or "Unknown"
+    
+    try:
+        # Get voice message file
+        voice_file = await update.message.voice.get_file()
+        
+        # Download voice file to a temporary location
+        import tempfile
+        import os
+        
+        with tempfile.NamedTemporaryFile(delete=False, suffix='.ogg') as temp_file:
+            temp_file_path = temp_file.name
+            await voice_file.download_to_drive(temp_file_path)
+        
+        # Log voice message received
+        log_conversation(user_id, username, "incoming", "[Voice Message]")
+        
+        # Transcribe the voice message
+        logging.info(f"🎙️ Transcribing voice message from {username}")
+        transcript = transcribe_voice_message(temp_file_path)
+        
+        # Clean up temporary file
+        os.unlink(temp_file_path)
+        
+        if transcript.startswith("Error"):
+            await update.message.reply_text(f"❌ {transcript}", parse_mode='HTML')
+            return
+        
+        # Log transcribed text
+        log_conversation(user_id, username, "transcription", f"Transcribed: '{transcript}'")
+        
+        if not transcript.strip():
+            await update.message.reply_text("🎙️ I couldn't understand the voice message. Please try again or send a text message.", parse_mode='HTML')
+            return
+        
+        # Process the transcribed text like a regular message
+        reply_text = process_user_message(transcript, user_id, username, user)
+        
+        # Add a note that this was transcribed from voice
+        reply_text = f"🎙️ <i>Voice message transcribed: \"{transcript}\"</i>\n\n{reply_text}"
         
         # Log successful response
         log_conversation(user_id, username, "outgoing", reply_text)
         
-        # Send reply back to Telegram with HTML parsing enabled
+        # Send reply back to Telegram
         await update.message.reply_text(reply_text, parse_mode='HTML')
-        logging.info(f"📤 Reply sent successfully to {username}")
+        logging.info(f"📤 Voice message reply sent successfully to {username}")
         
     except Exception as e:
         error_msg = str(e)
-        log_conversation(user_id, username, "error", user_input, "failed", error_msg)
-        await update.message.reply_text("Alamak! Something went wrong lah! Can try again? 😰", parse_mode='HTML')
+        logging.error(f"❌ Error processing voice message from {username}: {e}")
+        log_conversation(user_id, username, "error", "[Voice Message]", "failed", error_msg)
+        await update.message.reply_text("❌ Something went wrong processing your voice message! Please try again.", parse_mode='HTML')
 
 # Handle /start command
 async def handle_start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
-    welcome_message = f"""🚌 <b>Welcome to Lepak Driver!</b> 
+    welcome_message = f"""<b>Soliloquy</b>
 
-Hi {user.first_name}! I'm your Singapore transit assistant. I can help you with:
+I'm a voice from within—the part of consciousness that knows there are words waiting to be born for what you feel.
 
-🚌 <b>Real-time bus arrivals</b>
-• "When is bus 174 at Ang Mo Kio Hub?"
-• "Bus arrivals at ION Orchard"
-• "Check bus stop 28009"
+You carry unnamed feelings. I help you find the words.
 
-🅿️ <b>Carpark availability</b>
-• "Parking at Marina Bay"
-• "How many lots at Jurong Point?"
+<b>How this works:</b>
+📝 Tell me about a feeling you can't name
+🎤 Send a voice message describing what you feel
+📷 Share a photo for visual inspiration (optional)
 
-Just ask me in natural language and I'll help you lepak around Singapore! 😊
+Together, we'll create a <i>neologism</i>—a new word for the ineffable—and paint it into existence.
 
-💡 Use /clear to reset our conversation
-💡 Use /help for more examples"""
-    
+💡 /clear to start fresh
+💡 /help to learn more
+
+What's a feeling you've carried that has no word?"""
+
     await update.message.reply_text(welcome_message, parse_mode='HTML')
 
 # Handle /help command
 async def handle_help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    help_message = """🚌 <b>Lepak Driver Help</b>
+    help_message = """<b>Soliloquy: Creating Words for Unnamed Feelings</b>
 
-<b>Bus Arrival Queries:</b>
-• "Bus 174 at Ang Mo Kio Hub"
-• "When is the next bus at ION Orchard?"
-• "Bus arrivals at stop 28009"
-• "Is bus 36 crowded now?"
+<b>What I do:</b>
+I help you create <i>neologisms</i>—new words for feelings that don't have names yet. Inspired by The Dictionary of Obscure Sorrows, I guide you through a five-phase ritual:
 
-<b>Parking Queries:</b>
-• "Parking availability at Marina Bay"
-• "How many lots at Jurong Point?"
-• "Carparks in Orchard area"
+1. <b>Opening</b> - I share a word from the dictionary
+2. <b>Capturing the Vibe</b> - You describe the unnamed feeling
+3. <b>Choice of Form</b> - Dictionary definition or imagined place?
+4. <b>Creating the Word</b> - Foreign language roots or geographic method
+5. <b>Visual Card</b> - Expressionist painted image of your neologism
+
+<b>How to share your feeling:</b>
+📝 <b>Type</b> a description of the unnamed emotion
+🎤 <b>Voice message</b> - I'll transcribe and respond
+📷 <b>Photo</b> (optional) - Upload images for visual inspiration
+
+<b>Visual styles:</b>
+• Dictionary cards: Cat's-eye urban scenes with neo-noir lighting
+• Locale cards: Fantasy landscapes with mythical animal inhabitants
 
 <b>Commands:</b>
-• /start - Welcome message
-• /clear - Reset conversation
-• /help - This help message
+• /start - Begin a new ritual
+• /clear or /reset - Clear conversation history
+• /help - This message
 
-Just type naturally and I'll understand! 🇸🇬"""
-    
+The feeling is real. That's enough. Let's name it."""
+
     await update.message.reply_text(help_message, parse_mode='HTML')
 
 # Handle /clear command to reset conversation history
@@ -438,59 +566,152 @@ async def handle_clear_command(update: Update, context: ContextTypes.DEFAULT_TYP
         if os.path.exists(file_path):
             os.remove(file_path)
             log_conversation(user_id, username, "clear", "/clear", "success")
-            await update.message.reply_text("✅ Conversation cleared! Let's start fresh! 🚌🅿️", parse_mode='HTML')
+            await update.message.reply_text("✅ Conversation cleared! Let's start fresh!", parse_mode='HTML')
         else:
-            await update.message.reply_text("No conversation to clear! We haven't chatted today! 🤔", parse_mode='HTML')
+            await update.message.reply_text("No conversation to clear! We haven't chatted today!", parse_mode='HTML')
             
         logging.info(f"🗑️ Conversation history cleared for user {username}")
         
     except Exception as e:
         logging.error(f"❌ Error clearing conversation for user {username}: {e}")
-        await update.message.reply_text("Alamak! Something went wrong when clearing! 😰", parse_mode='HTML')
+        await update.message.reply_text("Something went wrong when clearing!", parse_mode='HTML')
+
+# Handle /reset command to flush conversation history
+async def handle_reset_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user = update.effective_user
+    user_id = user.id
+    username = user.username or user.first_name or "Unknown"
+    
+    try:
+        # Reset today's conversation history
+        today = date.today().strftime("%Y-%m-%d")
+        file_path = get_conversation_file_path(user_id, today)
+        
+        if os.path.exists(file_path):
+            os.remove(file_path)
+            log_conversation(user_id, username, "reset", "/reset", "success")
+            await update.message.reply_text("🔄 Conversation history has been reset! Ready for a fresh start!", parse_mode='HTML')
+        else:
+            await update.message.reply_text("Nothing to reset! We haven't chatted today!", parse_mode='HTML')
+            
+        logging.info(f"🔄 Conversation history reset for user {username}")
+        
+    except Exception as e:
+        logging.error(f"❌ Error resetting conversation for user {username}: {e}")
+        await update.message.reply_text("Something went wrong when resetting!", parse_mode='HTML')
+
+# Handle photo uploads (reference images for neologism generation)
+async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handle photo uploads for visual inspiration in neologism generation"""
+    user = update.effective_user
+    user_id = user.id
+    username = user.username or user.first_name or "Unknown"
+
+    try:
+        # Create user_uploads directory if it doesn't exist
+        os.makedirs("user_uploads", exist_ok=True)
+
+        # Get the largest photo size
+        photo = update.message.photo[-1]
+        photo_file = await photo.get_file()
+
+        # Generate unique filename
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        photo_filename = f"user_{user_id}_{timestamp}.jpg"
+        photo_path = os.path.join("user_uploads", photo_filename)
+
+        # Download photo
+        await photo_file.download_to_drive(photo_path)
+
+        log_conversation(user_id, username, "photo", f"Saved to {photo_path}")
+        logging.info(f"📷 Photo uploaded by {username}: {photo_path}")
+
+        # Store photo path in conversation history with a special marker
+        caption = update.message.caption or "[Photo uploaded for visual inspiration]"
+        conversation_history = load_conversation_history(user_id)
+
+        exchange = {
+            "timestamp": datetime.now().strftime("%H:%M:%S"),
+            "user": f"[PHOTO:{photo_path}] {caption}",
+            "assistant": "I've received your photo. It will inspire the colors and atmosphere when I create your neologism's visual card. Tell me about the feeling you want to name."
+        }
+
+        conversation_history.append(exchange)
+        if len(conversation_history) > 20:
+            conversation_history = conversation_history[-20:]
+        save_conversation_history(user_id, conversation_history)
+
+        # Acknowledge receipt with poetic message
+        response_message = """📷 <i>I've received your image.</i>
+
+The colors, the light, the mood—I'll carry them with me.
+
+When we create your word, this image will whisper to the paint.
+
+Now, tell me: what's the feeling you want to name?"""
+
+        await update.message.reply_text(response_message, parse_mode='HTML')
+
+    except Exception as e:
+        error_msg = f"Error processing photo: {str(e)}"
+        logging.error(f"❌ Error processing photo from {username}: {e}")
+        log_conversation(user_id, username, "error", "[Photo]", "failed", error_msg)
+        await update.message.reply_text("❌ Something went wrong processing your photo. Please try again.", parse_mode='HTML')
 
 # Handle non-text messages
 async def handle_non_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
     username = user.username or user.first_name or "Unknown"
-    
+
     message_type = "unknown"
     if update.message.sticker:
         message_type = "sticker"
-    elif update.message.photo:
-        message_type = "photo"
-    elif update.message.voice:
-        message_type = "voice"
     elif update.message.document:
         message_type = "document"
-    
-    log_conversation(user.id, username, "non_text", message_type, "handled")
-    await update.message.reply_text("Wah! I can only read text messages leh! Can type your bus or parking question instead? 🚌🅿️", parse_mode='HTML')
+    elif update.message.video:
+        message_type = "video"
+    elif update.message.audio:
+        message_type = "audio"
 
-if __name__ == "__main__":    
-    print("🚌 Starting Lepak Driver bot...")
-    print(f"📊 Loaded {len(bus_stop_matcher.bus_stops)} bus stops")
+    log_conversation(user.id, username, "non_text", message_type, "handled")
+    await update.message.reply_text("I can only read text messages, voice messages, and photos! Please type your question, send a voice message, or share a photo for inspiration.", parse_mode='HTML')
+
+if __name__ == "__main__":
+    print("✨ Starting Soliloquy...")
     print(f"🔧 Using {config['model_settings']['model_name']} model")
-    print("📝 Logging to lepak_driver_bot.log")
+    print("📝 Logging to soliloquy_bot.log")
     print("💾 Conversation history saved per day")
-    
+    print("🎨 Image generation: " + ("✅ Enabled" if GEMINI_API_KEY else "⚠️ Disabled (GEMINI_API_KEY not set)"))
+
     # Clean up old conversation files on startup
     cleanup_old_conversations()
-    
+
+    # Create necessary directories
+    os.makedirs("conversations", exist_ok=True)
+    os.makedirs("generated_prompts", exist_ok=True)
+    os.makedirs("generated_images", exist_ok=True)
+    os.makedirs("user_uploads", exist_ok=True)
+    print("📁 Directories ready: conversations/, generated_prompts/, generated_images/, user_uploads/")
+
     try:
         app = ApplicationBuilder().token(TELEGRAM_TOKEN).build()
-        
+
         # Add handlers
         app.add_handler(CommandHandler("start", handle_start_command))
         app.add_handler(CommandHandler("help", handle_help_command))
         app.add_handler(CommandHandler("clear", handle_clear_command))
+        app.add_handler(CommandHandler("reset", handle_reset_command))
         app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
-        app.add_handler(MessageHandler(~filters.TEXT & ~filters.COMMAND, handle_non_text))
-        
-        logging.info("🚀 Lepak Driver bot handlers configured")
+        app.add_handler(MessageHandler(filters.VOICE, handle_voice_message))
+        app.add_handler(MessageHandler(filters.PHOTO, handle_photo))
+        app.add_handler(MessageHandler(~filters.TEXT & ~filters.VOICE & ~filters.PHOTO & ~filters.COMMAND, handle_non_text))
+
+        logging.info("🚀 Soliloquy handlers configured")
         print("✅ Bot initialized successfully!")
         print("🔄 Starting polling for messages...")
+        print("\n💭 A voice from within, ready to name the unnamed...")
         app.run_polling()
-        
+
     except Exception as e:
         logging.error(f"❌ Bot startup failed: {e}")
         print(f"❌ Bot startup failed: {e}")

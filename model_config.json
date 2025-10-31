@@ -18,104 +18,79 @@
     "context_window": 8000,
     "system_prompt_file": "system_prompt.txt"
   },
-  "lta_api_settings": {
-    "base_url": "https://datamall2.mytransport.sg/ltaodataservice",
-    "endpoints": {
-      "bus_arrival": "/v3/BusArrival",
-      "carpark_availability": "/CarParkAvailabilityv2"
-    },
-    "rate_limits": {
-      "requests_per_minute": 500,
-      "requests_per_day": 5000
-    },
-    "timeout": 10,
-    "max_retries": 2
-  },
   "tools": [
     {
       "type": "function",
       "function": {
-        "name": "get_bus_arrival",
-        "description": "STEP 2: Get real-time bus arrival information for a specific bus stop code. Use this when: 1) User provides a 5-digit bus stop code directly, OR 2) User has selected a bus stop from the options provided by find_bus_stops_by_location. This gives live arrival times, crowding info, and estimated arrival minutes.",
+        "name": "get_current_time",
+        "description": "Get the current date and time",
         "parameters": {
           "type": "object",
-          "properties": {
-            "bus_stop_code": {
-              "type": "string",
-              "description": "The 5-digit bus stop code (e.g., '01012', '28009')"
-            },
-            "service_no": {
-              "type": "string",
-              "description": "Optional specific bus service number to filter results"
-            }
-          },
-          "required": ["bus_stop_code"]
+          "properties": {},
+          "required": []
         }
       }
     },
     {
       "type": "function",
       "function": {
-        "name": "get_bus_arrivals_by_location",
-        "description": "DEPRECATED: Use the 2-step approach instead. For location queries: 1) Use find_bus_stops_by_location first, 2) Let user choose, 3) Use get_bus_arrival. Only use this function if you need to get arrivals for multiple stops at once without user interaction.",
+        "name": "echo",
+        "description": "Echo back a message to the user",
         "parameters": {
           "type": "object",
           "properties": {
-            "location_query": {
+            "message": {
               "type": "string",
-              "description": "Location name or description to search for nearby bus stops (e.g., 'Ang Mo Kio Hub', 'ION Orchard', 'Marina Bay Sands')"
-            },
-            "service_no": {
-              "type": "string",
-              "description": "Optional specific bus service number to filter results"
-            },
-            "max_stops": {
-              "type": "integer",
-              "description": "Maximum number of bus stops to show (default: 5, max: 10)"
+              "description": "The message to echo back"
             }
           },
-          "required": ["location_query"]
+          "required": ["message"]
         }
       }
     },
     {
       "type": "function",
       "function": {
-        "name": "find_bus_stops_by_location",
-        "description": "STEP 1: Find bus stops near a location when user mentions a place name instead of a bus stop code. Use this as the FIRST STEP when users ask for bus arrivals at locations like 'ION Orchard', 'Bras Basah Complex', 'Marina Bay Sands', etc. Present the options to user for confirmation before getting arrival times.",
+        "name": "generate_neologism_image",
+        "description": "Generate a visual card for a neologism using Gemini 2.5 Flash Image. Creates expressionist painterly images in two styles: dictionary cards (cat's-eye urban scenes with neo-noir lighting) or locale cards (fantasy landscapes with mythical inhabitants). Automatically called after presenting a neologism to the user.",
         "parameters": {
           "type": "object",
           "properties": {
-            "location_query": {
+            "neologism_type": {
               "type": "string",
-              "description": "Location name or description to search for nearby bus stops"
+              "enum": ["dictionary", "locale"],
+              "description": "Type of visual card to generate: 'dictionary' for urban expressionist portraits with definitions, 'locale' for fantasy landscape places with mythical inhabitants"
             },
-            "max_results": {
-              "type": "integer",
-              "description": "Maximum number of bus stops to return (default: 5, max: 10)"
+            "word_or_place": {
+              "type": "string",
+              "description": "The neologism word (for dictionary type) or place name (for locale type)"
+            },
+            "pronunciation": {
+              "type": "string",
+              "description": "Pronunciation guide for the neologism (e.g., '/day-pay-zee-mahn/' or '/ek-lip-ser-ah/')"
+            },
+            "definition": {
+              "type": "string",
+              "description": "Complete definition of the neologism - what the word or place means and embodies"
+            },
+            "emotional_keywords": {
+              "type": "string",
+              "description": "3-5 comma-separated mood descriptors that capture the emotional essence (e.g., 'melancholy, nostalgic, bittersweet' or 'displacement, wonder, disorientation')"
+            },
+            "etymology": {
+              "type": "string",
+              "description": "Linguistic roots and origin of the neologism, citing foreign language sources (e.g., 'From French dépayser (dé- remove from + pays country)' or 'From Old Norse eclipsa (eclipse) + Latin era (epoch)')"
+            },
+            "additional_context": {
+              "type": "string",
+              "description": "Optional. For locale type: terrain features, weather, mythical creature inhabitants, and rituals they conduct. For dictionary type: additional scene details."
+            },
+            "reference_image_path": {
+              "type": "string",
+              "description": "Optional. Path to user-uploaded reference image for color palette and mood inspiration (multimodal input)"
             }
           },
-          "required": ["location_query"]
-        }
-      }
-    },
-    {
-      "type": "function",
-      "function": {
-        "name": "get_carpark_availability",
-        "description": "Get real-time carpark availability information",
-        "parameters": {
-          "type": "object",
-          "properties": {
-            "carpark_id": {
-              "type": "string",
-              "description": "Optional specific carpark ID to filter results"
-            },
-            "area": {
-              "type": "string",
-              "description": "Optional area filter (e.g., Orchard, Marina, HarbourFront, Jurong Lake District)"
-            }
-          }
+          "required": ["neologism_type", "word_or_place", "pronunciation", "definition", "emotional_keywords", "etymology"]
         }
       }
     }

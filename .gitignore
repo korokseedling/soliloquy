@@ -3,10 +3,17 @@
 
 # Logs
 *.log
-lepak_driver_bot.log
+soliloquy_bot.log
 
 # Conversation history
 conversations/
+
+# Generated content (images and prompts)
+generated_prompts/
+generated_images/
+user_uploads/
+
+# Python cache
 __pycache__/
 
 # Python cache
