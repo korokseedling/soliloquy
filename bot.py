@@ -234,29 +234,33 @@ def convert_asterisks_to_html(text: str) -> str:
     
     return text
 
-def process_user_message(user_input: str, user_id: int, username: str, telegram_user=None) -> str:
+async def process_user_message(user_input: str, user_id: int, username: str, telegram_user=None, update: Update = None, context: ContextTypes.DEFAULT_TYPE = None) -> str:
     """Process user message with OpenAI function calling and return response"""
-    
+
     try:
         # Load conversation history
         conversation_history = load_conversation_history(user_id)
-        
+
         # Get username for system prompt
         user_display_name = get_telegram_username(telegram_user) if telegram_user else username
-        
+
         # Prepare messages for OpenAI API
         messages = [
             {"role": "system", "content": get_system_prompt(user_display_name)}
         ]
-        
+
         # Add conversation history
         messages.extend(format_conversation_for_openai(conversation_history))
-        
+
         # Add current user message
         messages.append({"role": "user", "content": user_input})
-        
+
         logging.info(f"🤖 Sending to OpenAI with {len(conversation_history)} history items")
-        
+
+        # Send status message: crafting the response
+        if update and context:
+            await update.message.chat.send_action("typing")
+
         # Make API call to OpenAI with function calling
         response = client.chat.completions.create(
             model=config['model_settings']['model_name'],
@@ -266,9 +270,9 @@ def process_user_message(user_input: str, user_id: int, username: str, telegram_
             tools=config['tools'],
             tool_choice="auto"
         )
-        
+
         assistant_message = response.choices[0].message
-        
+
         # Handle tool calls if present
         if assistant_message.tool_calls:
             # Process each tool call
@@ -281,6 +285,11 @@ def process_user_message(user_input: str, user_id: int, username: str, telegram_
                 function_args = json.loads(tool_call.function.arguments)
 
                 log_conversation(user_id, username, "tool_call", f"{function_name}({function_args})")
+
+                # Send status message for image generation
+                if function_name == "generate_neologism_image" and update and context:
+                    await update.message.reply_text("🎨 <i>Painting your neologism into existence...</i>", parse_mode='HTML')
+                    await update.message.chat.send_action("upload_photo")
 
                 if function_name in TOOL_FUNCTIONS:
                     try:
@@ -391,8 +400,11 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     try:
+        # Send initial status message
+        await update.message.chat.send_action("typing")
+
         # Process message with function calling
-        reply_text = process_user_message(user_input, user_id, username, user)
+        reply_text = await process_user_message(user_input, user_id, username, user, update, context)
 
         # Log successful response
         log_conversation(user_id, username, "outgoing", reply_text)
@@ -496,18 +508,38 @@ async def handle_voice_message(update: Update, context: ContextTypes.DEFAULT_TYP
             await update.message.reply_text("🎙️ I couldn't understand the voice message. Please try again or send a text message.", parse_mode='HTML')
             return
         
+        # Send status message
+        await update.message.chat.send_action("typing")
+
         # Process the transcribed text like a regular message
-        reply_text = process_user_message(transcript, user_id, username, user)
-        
-        # Add a note that this was transcribed from voice
-        reply_text = f"🎙️ <i>Voice message transcribed: \"{transcript}\"</i>\n\n{reply_text}"
-        
+        reply_text = await process_user_message(transcript, user_id, username, user, update, context)
+
         # Log successful response
         log_conversation(user_id, username, "outgoing", reply_text)
-        
-        # Send reply back to Telegram
-        await update.message.reply_text(reply_text, parse_mode='HTML')
-        logging.info(f"📤 Voice message reply sent successfully to {username}")
+
+        # Check if response contains IMAGE_PATH: prefix (from generate_neologism_image)
+        if reply_text.startswith("IMAGE_PATH:"):
+            # Extract image path and remaining text
+            lines = reply_text.split('\n', 1)
+            image_path = lines[0].replace("IMAGE_PATH:", "").strip()
+            text_message = lines[1].strip() if len(lines) > 1 else "✨ Your neologism's visual card."
+
+            # Add voice transcription note
+            text_message = f"🎙️ <i>Voice message transcribed: \"{transcript}\"</i>\n\n{text_message}"
+
+            # Send the image
+            if os.path.exists(image_path):
+                with open(image_path, 'rb') as photo:
+                    await update.message.reply_photo(photo=photo, caption=text_message, parse_mode='HTML')
+                logging.info(f"🖼️ Image sent successfully to {username} (voice): {image_path}")
+            else:
+                # Fallback if image file not found
+                await update.message.reply_text(f"❌ Image generation completed but file not found at {image_path}", parse_mode='HTML')
+        else:
+            # Normal text response without image - add voice transcription note
+            reply_text = f"🎙️ <i>Voice message transcribed: \"{transcript}\"</i>\n\n{reply_text}"
+            await update.message.reply_text(reply_text, parse_mode='HTML')
+            logging.info(f"📤 Voice message reply sent successfully to {username}")
         
     except Exception as e:
         error_msg = str(e)
