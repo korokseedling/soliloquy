@@ -274,17 +274,29 @@ def process_user_message(user_input: str, user_id: int, username: str, telegram_
             # Process each tool call
             tool_responses = []
             tool_call_info = []
-            
+            image_path = None  # Track if image generation occurred
+
             for tool_call in assistant_message.tool_calls:
                 function_name = tool_call.function.name
                 function_args = json.loads(tool_call.function.arguments)
-                
+
                 log_conversation(user_id, username, "tool_call", f"{function_name}({function_args})")
-                
+
                 if function_name in TOOL_FUNCTIONS:
                     try:
                         tool_response = TOOL_FUNCTIONS[function_name](**function_args)
-                        tool_responses.append(tool_response)
+
+                        # Check if this is an image generation response
+                        if tool_response.startswith("IMAGE_PATH:"):
+                            lines = tool_response.split('\n', 1)
+                            image_path = lines[0].replace("IMAGE_PATH:", "").strip()
+                            # Send only the message part to OpenAI, not the IMAGE_PATH: prefix
+                            clean_response = lines[1].strip() if len(lines) > 1 else "I've created a visual card for your neologism."
+                            tool_responses.append(clean_response)
+                            logging.info(f"🖼️ Image path captured for sending: {image_path}")
+                        else:
+                            tool_responses.append(tool_response)
+
                         tool_call_info.append({"function": function_name, "args": function_args})
                     except Exception as e:
                         error_response = f"❌ Error executing {function_name}: {str(e)}"
@@ -292,7 +304,7 @@ def process_user_message(user_input: str, user_id: int, username: str, telegram_
                         tool_call_info.append({"function": function_name, "args": function_args, "error": str(e)})
                 else:
                     tool_responses.append(f"❌ Unknown function: {function_name}")
-            
+
             # Prepare messages with tool responses for follow-up call
             messages_with_tools = messages + [
                 {
@@ -314,7 +326,7 @@ def process_user_message(user_input: str, user_id: int, username: str, telegram_
                     "tool_call_id": assistant_message.tool_calls[i].id
                 } for i, response_text in enumerate(tool_responses)
             ]
-            
+
             # Make another API call with tool responses
             final_response = client.chat.completions.create(
                 model=config['model_settings']['model_name'],
@@ -322,15 +334,20 @@ def process_user_message(user_input: str, user_id: int, username: str, telegram_
                 temperature=config['model_settings']['temperature'],
                 max_tokens=config['model_settings']['max_tokens']
             )
-            
+
             final_message = final_response.choices[0].message.content
-            
+
             # Convert any asterisks to HTML as fallback protection
             final_message = convert_asterisks_to_html(final_message)
-            
+
+            # If image was generated, prepend IMAGE_PATH: for handle_message to detect
+            if image_path:
+                final_message = f"IMAGE_PATH:{image_path}\n\n{final_message}"
+                logging.info(f"🖼️ Image path attached to final message: {image_path}")
+
             # Save conversation with tool call info
             add_to_conversation_history(user_id, user_input, final_message, tool_call_info)
-            
+
             logging.info(f"✅ OpenAI API success with tools. Tokens: {final_response.usage.total_tokens}")
             return final_message
         
