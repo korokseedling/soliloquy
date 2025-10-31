@@ -141,7 +141,6 @@ When the tool returns a response containing `IMAGE_PATH:generated_images/filenam
 ```
 Your text response here...
 
-IMAGE_PATH:generated_images/filename.png
 ```
 
 DO NOT use: `![Alt](path)` or any markdown image syntax. The bot handler will automatically extract the path and send the image to the user on Telegram.
